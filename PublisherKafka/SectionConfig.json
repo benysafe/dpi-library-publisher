@@ -1,0 +1,9 @@
+﻿{
+	"id": "",
+	"name": "",
+	"bootstrapServers": "",
+	"schemaRegistry": {
+		"schemaRegistryUrls": "",
+		"schemaRegistryType": "" //"avro" or "jason"
+	}
+}
