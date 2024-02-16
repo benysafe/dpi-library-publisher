@@ -32,6 +32,65 @@ namespace PublisherMQTT
                 _id = id;
                 _logger = (Logger)logger.init("PublisherMQTT");
 
+                getConfig();
+
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex.ToString());
+                throw ex;
+            }
+        }
+
+        public bool publish(string recipient, object payload, string priority = "NORMAL")
+        {
+            try
+            {
+                _logger.Trace("Inicio");
+                
+                if(_configurator.hasNewConfig(_id))
+                {
+                    reConfig();
+                    _logger.Debug("Reconfiguracion exitosa");
+                }
+                
+                if (payload is byte[])
+                {
+                    var message = new MqttApplicationMessageBuilder()
+                        .WithTopic(recipient)
+                        .WithPayload(Encoding.UTF8.GetString((byte[])payload))
+                        .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                        .WithRetainFlag()
+                        .Build();
+
+                    var toSuscribe = mqttClient.EnqueueAsync(message);
+                    if (!toSuscribe.Wait(TimeSpan.FromSeconds(30)))   //30 segundos para publicar al topico en el broker
+                    {
+                        throw new Exception("30 segundos de tiempo de espera para publicar al 'topico '" + recipient + "' en el broker 'mqtt://" + sHost + ":" + sPort + "/' agotados");
+                    }
+
+                    _logger.Trace("Fin");
+                    return true;
+                }
+                else
+                {
+                    _logger.Error("No está implementada la publicación para el tipo de dato suministrado");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex.ToString());
+                throw ex;
+            }
+        }
+
+        private void getConfig()
+        {
+            try
+            {
+                _logger.Trace("Inicio");
+
                 object value;
                 Dictionary<string, object> dirpublisherConfig = _configurator.getMap(Config.Publishers, _id);
                 if (!dirpublisherConfig.TryGetValue(Config.Host, out value))
@@ -48,19 +107,19 @@ namespace PublisherMQTT
                 }
                 sPort = value.ToString();
 
-                if (_configurator.getMap(Config.Subscriptors, _id).TryGetValue("version", out value))
+                if (_configurator.getMap(Config.Publishers, _id).TryGetValue("version", out value))
                 {
                     sProtocolVersion = value.ToString();
                 }
 
-                if (_configurator.getMap(Config.Subscriptors, _id).TryGetValue("levelQoS", out value))
+                if (_configurator.getMap(Config.Publishers, _id).TryGetValue("levelQoS", out value))
                 {
                     sLevelQoS = value.ToString();
                 }
 
                 // Create client options object
                 MqttClientOptionsBuilder builder;
-;
+                ;
                 if (sProtocolVersion == "5.0")  //MQTTv5.0
                 {
                     builder = new MqttClientOptionsBuilder()
@@ -98,47 +157,33 @@ namespace PublisherMQTT
                     throw new Exception($"30 segundos de tiempo de espera para conexion con el broker 'mqtt://{sHost}:{sPort}/' agotados");
                 }
 
+                _logger.Trace("Fin");
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.Error(ex.ToString());
-                throw ex;
+                _logger.Error(e.ToString());
+                throw e;
             }
         }
-
-        public bool publish(string recipient, object payload, string priority = "NORMAL")
+    
+        private bool reConfig()
         {
             try
             {
-                _logger.Trace("Inicio");
-                if (payload is byte[])
+                var ToStop = mqttClient.StopAsync();
+                
+                if (!ToStop.Wait(TimeSpan.FromSeconds(30)))   //30 segundos para detener la conexion con el broker 
                 {
-                    var message = new MqttApplicationMessageBuilder()
-                        .WithTopic(recipient)
-                        .WithPayload(Encoding.UTF8.GetString((byte[])payload))
-                        .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                        .WithRetainFlag()
-                        .Build();
+                    throw new Exception("30 segundos para detener la conexion con el broker 'mqtt://" + sHost + ":" + sPort + "/' agotados");
+                }
+                getConfig();
 
-                    var toSuscribe = mqttClient.EnqueueAsync(message);
-                    if (!toSuscribe.Wait(TimeSpan.FromSeconds(30)))   //30 segundos para publicar al topico en el broker
-                    {
-                        throw new Exception($"30 segundos de tiempo de espera para publicar al 'topico{recipient}' en el broker 'mqtt://{sHost}:{sPort}/' agotados");
-                    }
-                    
-                    _logger.Trace("Fin");
-                    return true;
-                }
-                else
-                {
-                    _logger.Error("No está implementada la publicación para el tipo de dato suministrado");
-                    return false;
-                }
+                return true;
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.Error(ex.ToString());
-                throw ex;
+                _logger.Error(e.ToString());
+                throw e;
             }
         }
     }
