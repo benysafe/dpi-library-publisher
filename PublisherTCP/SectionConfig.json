@@ -1,0 +1,7 @@
+﻿{
+	"id": "",
+	"name": "",
+	"host": "",
+	"port": "",
+	"reconnectDelay": "5" //en segundos
+}
